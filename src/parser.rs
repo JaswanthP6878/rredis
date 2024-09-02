@@ -1,12 +1,8 @@
+use std::os::unix::process;
+use crate::protocol::Protocol;
+
 pub struct Parser {
     value: String,
-}
-
-#[derive(Debug)]
-pub enum Protocol {
-    Echo(String),
-    PING,
-    INVALID,
 }
 
 impl Parser {
@@ -36,6 +32,10 @@ impl Parser {
         } else if parsed_command[index].to_uppercase() == "ECHO" {
             index += 2;
             return Protocol::Echo(parsed_command[index].to_string());
+        } else if parsed_command[index].to_uppercase() == "SET" {
+            return Protocol::Set(parsed_command[index+2].to_string(), parsed_command[index+4].to_string());
+        } else if parsed_command[index].to_uppercase() == "GET" {
+            return Protocol::GET(parsed_command[index+2].to_string());
         }
         return Protocol::INVALID;
     }
