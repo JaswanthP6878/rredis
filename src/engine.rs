@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Mutex};
+use std::{collections::HashMap, ops::DerefMut, sync::Mutex};
 
 use crate::protocol::Protocol;
 
@@ -38,3 +38,4 @@ impl Engine {
     }
 
 }
+
