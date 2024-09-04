@@ -10,17 +10,20 @@ mod parser;
 mod protocol;
 mod engine;
 
+use cli::Arguments;
 use protocol::Protocol;
 use engine::Engine;
+mod cli;
 
 
 
 fn main() {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
-    let args: Vec<String> = env::args().collect();
-    if args.len() > 0 {
-        println!("{:?}", args);
-    }
+    let args: Vec<String> = env::args().skip(1).collect();
+    // if args.len() > 0 {
+    //     println!("{:?}", args);
+    // }
+    let Arguments = Arguments::new(args);
     println!("Logs from your program will appear here!");
     let engine = Arc::new(Mutex::new(Engine::init()));
     println!("started redis server in 6379");

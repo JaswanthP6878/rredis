@@ -1,14 +1,14 @@
 use core::time;
 use std::{collections::HashMap, ops::DerefMut, sync::Mutex, time::{Duration, SystemTime}};
-
 use tokio::io::DuplexStream;
-
 use crate::protocol::Protocol;
+use crate::cli::Arguments;
+
 #[allow(dead_code)]
 pub struct Engine {
-    memory: HashMap<String, (String,i32,Option<SystemTime>)>, // i32 is to store the timeout time
+    // value strores also the timeout and the time the key is inserted at
+    memory: HashMap<String, (String,i32,Option<SystemTime>)>,
     rdb_file: String,
-    start_time: SystemTime, // start_time of the engine;
 }
 
 impl Engine {
@@ -16,7 +16,6 @@ impl Engine {
         Engine {
             memory: HashMap::new(),
             rdb_file: "dump.rdb".to_string(),
-            start_time: SystemTime::now()
         }
     }
     
