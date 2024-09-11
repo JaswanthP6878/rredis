@@ -8,14 +8,16 @@ use crate::cli::Arguments;
 pub struct Engine {
     // value strores also the timeout and the time the key is inserted at
     memory: HashMap<String, (String,i32,Option<SystemTime>)>,
+    arguments: Arguments,
     rdb_file: String,
 }
 
 impl Engine {
-    pub fn init() -> Self {
+    pub fn init(args: Arguments) -> Self {
         Engine {
             memory: HashMap::new(),
             rdb_file: "dump.rdb".to_string(),
+            arguments: args
         }
     }
     
@@ -43,6 +45,13 @@ impl Engine {
                 }
                 return result;
             },
+            Protocol::CONFIG(val) => {
+                if let Some(v) = self.arguments.get_arg(val) {
+                    return v.to_owned();
+                } else {
+                    return "INVALID".to_owned();
+                }
+            }
             Protocol::INVALID => {
                 return "INVALD".to_owned();
             },

@@ -18,6 +18,10 @@ impl Arguments {
 
         Arguments {args: arguments}
     }
+
+    pub fn get_arg(&self, val: String) -> Option<&String> {
+        self.args.get(&val)
+    }
 }
 
 

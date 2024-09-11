@@ -52,6 +52,8 @@ impl Parser {
             return Protocol::Set(parsed_command[index+1].to_string(), parsed_command[index+2].to_string(), px_timeout,time);
         } else if parsed_command[index].to_uppercase() == "GET" {
             return Protocol::GET(parsed_command[index+1].to_string());
+        } else if parsed_command[index].to_uppercase() == "CONFIG" {
+            return Protocol::CONFIG(parsed_command[index+2].to_string());
         }
         return Protocol::INVALID;
     }
