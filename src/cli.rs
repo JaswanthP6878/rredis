@@ -22,6 +22,17 @@ impl Arguments {
     pub fn get_arg(&self, val: String) -> Option<&String> {
         self.args.get(&val)
     }
+
+    pub fn get_dir(&self) -> Option<&String> {
+        self.args.get("dir")
+    }
+    pub fn get_dbfile(&self) -> Option<&String> {
+        self.args.get("dbfilename")
+    }
+
+    
+
+    
 }
 
 

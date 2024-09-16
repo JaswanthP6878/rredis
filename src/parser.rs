@@ -54,12 +54,12 @@ impl Parser {
             return Protocol::GET(parsed_command[index+1].to_string());
         } else if parsed_command[index].to_uppercase() == "CONFIG" {
             return Protocol::CONFIG(parsed_command[index+2].to_string());
+        } else if parsed_command[index].to_uppercase() == "KEYS" {
+            return Protocol::KEYS(parsed_command[index+1].to_string());
         }
         return Protocol::INVALID;
     }
 }
-
-
 
 // PING command would be sent as *1\r\n$4\r\nPING\r\n
 

@@ -1,7 +1,7 @@
 use core::time;
-use std::{collections::HashMap, ops::DerefMut, sync::Mutex, time::{Duration, SystemTime}};
+use std::{collections::HashMap, ops::DerefMut,sync::Mutex, time::{Duration, SystemTime}};
 use tokio::io::DuplexStream;
-use crate::protocol::Protocol;
+use crate::protocol::{Protocol, Response};
 use crate::cli::Arguments;
 
 #[allow(dead_code)]
@@ -10,13 +10,23 @@ pub struct Engine {
     memory: HashMap<String, (String,i32,Option<SystemTime>)>,
     arguments: Arguments,
     rdb_file: String,
+    rdb_path: String
 }
 
 impl Engine {
     pub fn init(args: Arguments) -> Self {
+        let mut  rdb_file = String::from("dump.rdb");
+        let mut rdb_path = String::from("/tmp");
+        if let Some(val) = args.get_dbfile() {
+            rdb_file = val.to_string();
+        }
+        if let Some(val) = args.get_dir() {
+            rdb_path = val.to_string();
+        }
         Engine {
             memory: HashMap::new(),
-            rdb_file: "dump.rdb".to_string(),
+            rdb_file,
+            rdb_path,
             arguments: args
         }
     }
@@ -54,7 +64,37 @@ impl Engine {
             }
             Protocol::INVALID => {
                 return "INVALD".to_owned();
+            }
+            Protocol::KEYS(val) => {
+                println!("Key pattern is {}", val);
+                let mut reponse: Response<'_> = Response::new();
+                if val == "*".to_string() {
+                    for key in self.memory.keys() {
+                        reponse.add_item(key);
+                    }
+                } else if val.ends_with("*") { 
+                    let prefix = &val[..val.len() - 1];
+                    let values = self.memory.keys().into_iter()
+                    .filter(|s| s.starts_with(prefix))
+                    .collect::<Vec<_>>();
+                    for val in values {
+                        reponse.add_item(val);
+                    }
+                } else {
+                    let values = self.memory.keys().into_iter()
+                    .filter(|s| *s == &val)
+                    .collect::<Vec<_>>(); 
+                    for val in values {
+                        reponse.add_item(val);
+                    }
+                }
+
+                return reponse.construct_response();
             },
+            Protocol::SAVE => {
+                todo!()
+            },
+            
         }
     }
 

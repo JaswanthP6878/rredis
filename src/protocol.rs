@@ -9,6 +9,8 @@ pub enum Protocol{
     Set(String,String, i32, Option<SystemTime>), // the i32 is the px timeout
     GET(String),
     CONFIG(String),
+    // save the values on the hashmap onto a disk
+    SAVE,
     INVALID,
     /// Returns all the keys that match the String format;
     KEYS(String)
@@ -28,12 +30,12 @@ impl<'a> Response<'a> {
         self.items.push(val);
     }
 
-    pub fn construct_response(&mut self) -> String {
+    pub fn construct_response(&self) -> String {
         if self.items.len() == 0 {
             return "$-1\r\n".to_string();
         } else {
             let mut response_str = format!("${}\r\n", self.items.len());
-            self.items.iter_mut().map(|val| format!("{}\r\n", val)).for_each(|val | response_str.push_str(&val));
+            self.items.iter().map(|val| format!("{}\r\n", val)).for_each(|val | response_str.push_str(&val));
            return response_str;
         }
     }

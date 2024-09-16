@@ -23,9 +23,9 @@ fn main() {
     // if args.len() > 0 {
     //     println!("{:?}", args);
     // }
-    let Arguments = Arguments::new(args);
+    let Arguments: Arguments = Arguments::new(args);
     println!("Logs from your program will appear here!");
-    let engine = Arc::new(Mutex::new(Engine::init(Arguments)));
+    let engine: Arc<Mutex<Engine>> = Arc::new(Mutex::new(Engine::init(Arguments)));
     println!("started redis server in 6379");
     let listener = TcpListener::bind("127.0.0.1:6379").unwrap();
 
