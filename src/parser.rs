@@ -56,6 +56,8 @@ impl Parser {
             return Protocol::CONFIG(parsed_command[index+2].to_string());
         } else if parsed_command[index].to_uppercase() == "KEYS" {
             return Protocol::KEYS(parsed_command[index+1].to_string());
+        } else if parsed_command[index].to_ascii_uppercase() == "SAVE" {
+            return Protocol::SAVE;
         }
         return Protocol::INVALID;
     }
@@ -68,9 +70,9 @@ mod tests {
     use super::*;
     #[test]
     fn test_parser() {
-        let parser = Parser::new("*2\r\n$4\r\nECHO\r\n$3\r\nhey\r\n".to_string());
-        let parser = Parser::new("*1\r\n$4\r\nPING\r\n".to_string());
-        let parser = Parser::new("*3\r\n$3\r\nSET\r\n$3\r\nFOO\r\n$4\r\nBAR\r\n".to_string());
+        let mut  parser = Parser::new("*2\r\n$4\r\nECHO\r\n$3\r\nhey\r\n".to_string());
+        parser = Parser::new("*1\r\n$4\r\nPING\r\n".to_string());
+        parser = Parser::new("*3\r\n$3\r\nSET\r\n$3\r\nFOO\r\n$4\r\nBAR\r\n".to_string());
         println!("{:#?}", parser.get_command());
     }
 }

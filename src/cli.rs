@@ -8,7 +8,8 @@ pub struct Arguments {
 impl Arguments {
     pub fn new(mut args: Vec<String>) -> Self {
         let mut arguments: HashMap<String, String> = HashMap::new();
-        for mut i in 0..args.len() {
+        let mut i = 0;
+        while i < arguments.len() {
             if args[i].starts_with("--") {
                 println!("index value is {}, value is {}: {}", i, args[i], args[i+1]);
                 let _val = arguments.insert(args[i].split_off(2).to_owned(), args[i+1].to_owned());
@@ -30,9 +31,6 @@ impl Arguments {
         self.args.get("dbfilename")
     }
 
-    
-
-    
 }
 
 

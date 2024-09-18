@@ -1,8 +1,9 @@
 use core::time;
-use std::{collections::HashMap, ops::DerefMut,sync::Mutex, time::{Duration, SystemTime}};
+use std::{collections::HashMap, fs::remove_dir, ops::DerefMut, sync::Mutex, time::{Duration, SystemTime}};
 use tokio::io::DuplexStream;
-use crate::protocol::{Protocol, Response};
+use crate::{db::Db, protocol::{Protocol, Response}};
 use crate::cli::Arguments;
+use crate::db;
 
 #[allow(dead_code)]
 pub struct Engine {
@@ -10,24 +11,28 @@ pub struct Engine {
     memory: HashMap<String, (String,i32,Option<SystemTime>)>,
     arguments: Arguments,
     rdb_file: String,
-    rdb_path: String
+    rdb_path: String,
+    db: Db,
 }
 
 impl Engine {
     pub fn init(args: Arguments) -> Self {
         let mut  rdb_file = String::from("dump.rdb");
-        let mut rdb_path = String::from("/tmp");
+        let mut rdb_path: String = String::from("/tmp");
         if let Some(val) = args.get_dbfile() {
             rdb_file = val.to_string();
         }
         if let Some(val) = args.get_dir() {
             rdb_path = val.to_string();
         }
+        let rdb_path_db = rdb_path.clone();
+        let rdb_file_db = rdb_file.clone();
         Engine {
             memory: HashMap::new(),
             rdb_file,
             rdb_path,
-            arguments: args
+            arguments: args,
+            db: Db::new(rdb_path_db, rdb_file_db)
         }
     }
     
@@ -92,7 +97,17 @@ impl Engine {
                 return reponse.construct_response();
             },
             Protocol::SAVE => {
-                todo!()
+                let mut response: Response<'_> = Response::new();
+                match self.db.persist_to_db(&self.memory) {
+                    Ok(_val) => {
+                        response.add_item("Ok");
+                        return response.construct_response();
+                    }, 
+                    Err(e) => {
+                        println!("error saving data: {}", e);
+                        response.construct_response()
+                    }
+                }
             },
             
         }
