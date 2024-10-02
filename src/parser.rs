@@ -1,5 +1,5 @@
-use std::{alloc::System, os::unix::process, thread::panicking, time::SystemTime};
 use crate::protocol::Protocol;
+use std::{alloc::System, os::unix::process, thread::panicking, time::SystemTime};
 
 pub struct Parser {
     value: String,
@@ -14,7 +14,7 @@ impl Parser {
             .value
             .split('\n')
             .map(|val| val.strip_suffix("\r").unwrap_or(val))
-            .filter(|val| !((*val).starts_with("$") || (*val).starts_with("*") || (*val) == "") )
+            .filter(|val| !((*val).starts_with("$") || (*val).starts_with("*") || (*val) == ""))
             .collect();
         return lines;
     }
@@ -28,7 +28,7 @@ impl Parser {
         //     .parse::<u8>()
         //     .unwrap();
         let mut index = 0 as usize; // at indexes 2 multiples we would get the actual commands
-        // println!("{}", parsed_command.len());
+                                    // println!("{}", parsed_command.len());
         if parsed_command[index].to_uppercase() == "PING" {
             return Protocol::PING;
         } else if parsed_command[index].to_uppercase() == "ECHO" {
@@ -36,28 +36,35 @@ impl Parser {
             return Protocol::Echo(parsed_command[index].to_string());
         } else if parsed_command[index].to_uppercase() == "SET" {
             let mut px_timeout = -1; // default value is -1;
-            let mut time: Option<SystemTime>= None;
-            if parsed_command.len() > 3{
-                if parsed_command[index+3].to_uppercase() == "PX".to_owned() {
-                if let Ok(val) = parsed_command[index+4].parse::<i32>() {
-                    px_timeout = val;
-                    time = Some(SystemTime::now())
-                } else {
-                    return Protocol::INVALID;
-                }
+            let mut time: Option<SystemTime> = None;
+            if parsed_command.len() > 3 {
+                if parsed_command[index + 3].to_uppercase() == "PX".to_owned() {
+                    if let Ok(val) = parsed_command[index + 4].parse::<i32>() {
+                        px_timeout = val;
+                        time = Some(SystemTime::now())
+                    } else {
+                        return Protocol::INVALID;
+                    }
                 } else {
                     return Protocol::INVALID;
                 }
             }
-            return Protocol::Set(parsed_command[index+1].to_string(), parsed_command[index+2].to_string(), px_timeout,time);
+            return Protocol::Set(
+                parsed_command[index + 1].to_string(),
+                parsed_command[index + 2].to_string(),
+                px_timeout,
+                time,
+            );
         } else if parsed_command[index].to_uppercase() == "GET" {
-            return Protocol::GET(parsed_command[index+1].to_string());
+            return Protocol::GET(parsed_command[index + 1].to_string());
         } else if parsed_command[index].to_uppercase() == "CONFIG" {
-            return Protocol::CONFIG(parsed_command[index+2].to_string());
+            return Protocol::CONFIG(parsed_command[index + 2].to_string());
         } else if parsed_command[index].to_uppercase() == "KEYS" {
-            return Protocol::KEYS(parsed_command[index+1].to_string());
+            return Protocol::KEYS(parsed_command[index + 1].to_string());
         } else if parsed_command[index].to_ascii_uppercase() == "SAVE" {
             return Protocol::SAVE;
+        } else if parsed_command[index].to_ascii_uppercase() == "INFO" {
+            return Protocol::INFO(parsed_command[index + 1].to_string());
         }
         return Protocol::INVALID;
     }
@@ -70,7 +77,7 @@ mod tests {
     use super::*;
     #[test]
     fn test_parser() {
-        let mut  parser = Parser::new("*2\r\n$4\r\nECHO\r\n$3\r\nhey\r\n".to_string());
+        let mut parser = Parser::new("*2\r\n$4\r\nECHO\r\n$3\r\nhey\r\n".to_string());
         parser = Parser::new("*1\r\n$4\r\nPING\r\n".to_string());
         parser = Parser::new("*3\r\n$3\r\nSET\r\n$3\r\nFOO\r\n$4\r\nBAR\r\n".to_string());
         println!("{:#?}", parser.get_command());

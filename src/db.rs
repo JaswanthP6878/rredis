@@ -1,9 +1,13 @@
-use std::{fs::File, io::{self, Write}, path::{Path, PathBuf}, time::SystemTime};
 use std::collections::HashMap;
-
+use std::{
+    fs::File,
+    io::{self, Write},
+    path::{Path, PathBuf},
+    time::SystemTime,
+};
 
 // persistence for the redis system
-// Only Storing Key and values for simplicty 
+// Only Storing Key and values for simplicty
 // not storing as per the spec.. maybe future implmenentation will do
 pub struct Db {
     db_file: PathBuf,
@@ -19,7 +23,10 @@ impl Db {
         }
     }
     // Saving the Key and value in the file;
-    pub fn persist_to_db(&self, data: &HashMap<String, (String,i32,Option<SystemTime>)>) -> Result<(), io::Error> {
+    pub fn persist_to_db(
+        &self,
+        data: &HashMap<String, (String, i32, Option<SystemTime>)>,
+    ) -> Result<(), io::Error> {
         let mut file_handle = File::create(&self.db_file)?;
         for (key, values) in data.iter() {
             file_handle.write_all(key.as_bytes())?;
@@ -30,4 +37,3 @@ impl Db {
         Ok(())
     }
 }
-
