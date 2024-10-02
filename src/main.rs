@@ -55,7 +55,7 @@ fn main() {
     println!("started listening for messages");
 
     for stream in listener.incoming() {
-        let engine_temp = Arc::clone(&engine);
+        let engine_temp: Arc<Mutex<Engine>> = Arc::clone(&engine);
         // TODO:  Use a thead pool instead
         thread::spawn(move || match stream {
             Ok(mut stream) => {
