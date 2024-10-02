@@ -14,15 +14,7 @@ use std::{
     sync::Mutex,
     time::{Duration, SystemTime},
 };
-use tokio::io::DuplexStream;
 
-pub trait Gossip {
-    fn run(&mut self) -> Result<()>;
-    fn handshake(&mut self) -> Result<()>;
-
-    // for talking with a master
-    fn talk(&mut self, msg: &str) -> Result<String>;
-}
 
 #[allow(dead_code)]
 pub struct Engine {
@@ -166,55 +158,3 @@ impl Engine {
     }
 }
 
-impl Gossip for Engine {
-    fn run(&mut self) -> Result<()> {
-        self.handshake().expect("failed");
-        Ok(())
-    }
-
-    fn handshake(&mut self) -> Result<()> {
-        let _ = self.talk("ping")?;
-        // println!("Recived command {message}");
-        Ok(())
-    }
-
-    fn talk(&mut self, _msg: &str) -> Result<String> {
-        use std::io::{Read, Write};
-        use std::net::TcpStream;
-        if let Some(val) = self.arguments.get_arg("replicaof".to_string()) {
-            let master_details = val.split_ascii_whitespace().collect::<Vec<_>>();
-            let (host, port) = (master_details[0].to_string(), master_details[1].to_string());
-
-            match TcpStream::connect(format!("{}:{}", host, port)) {
-                Ok(mut stream) => {
-                    println!("successfully connected to master");
-                    let val = "*1\r\n$4\r\nPING\r\n";
-
-                    match stream.write(val.as_bytes()) {
-                        Ok(_) => {
-                            println!("sent data to master");
-                            // Ok(format!("data sent"))
-                        }
-                        Err(e) => {
-                            return Err(e.into());
-                        }
-                    }
-                    // read response from stream
-                    println!("waiting for resp from master");
-                    let mut buffer = [0; 512];
-                    match stream.read(&mut buffer) {
-                        Ok(size) => Ok(String::from_utf8_lossy(&buffer[0..size]).to_string()),
-                        Err(e) => {
-                            return Err(e.into());
-                        }
-                    }
-                }
-                Err(e) => {
-                    return Err(e.into());
-                }
-            }
-        } else {
-            return Err(Error::msg("not a replica"));
-        }
-    }
-}

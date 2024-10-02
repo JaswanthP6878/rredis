@@ -17,7 +17,7 @@ mod parser;
 mod protocol;
 
 use cli::Arguments;
-use engine::{Engine, Gossip};
+use engine::{Engine};
 use protocol::Protocol;
 mod cli;
 mod db;
@@ -30,7 +30,7 @@ fn main() {
         println!("{:?}", args);
     }
     let arguments: Arguments = Arguments::new(args);
-    let is_replica = arguments.is_replica(); // check if this is master or replica
+    // let is_replica = arguments.is_replica(); // check if this is master or replica
     // default port number is 6379;
     let default_port_number = "6379".to_string();
     let port_number = arguments
@@ -41,17 +41,6 @@ fn main() {
     println!("started redis server in {}", port_number);
     let listener = TcpListener::bind(format!("127.0.0.1:{}", port_number)).unwrap();
 
-    let engine_gossip = Arc::clone(&engine);
-    if is_replica {
-        thread::spawn(move || loop {
-            engine_gossip
-                .lock()
-                .unwrap()
-                .run()
-                .expect("gossip engine failed");
-            thread::sleep(Duration::from_secs(10));
-        });
-    }
     println!("started listening for messages");
 
     for stream in listener.incoming() {

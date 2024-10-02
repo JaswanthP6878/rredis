@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::atomic};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Arguments {
     args: HashMap<String, String>,
 }
