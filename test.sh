@@ -46,12 +46,6 @@
 
 
 # test replication info
-(printf "*3\r\n$3\r\nset\r\n$3\r\nfoo\r\n$\r\nextra\r\n";) | nc localhost 6379
+# (printf "*2\r\n$3\r\nget\r\n$3\r\nfoo\r\n";) | nc localhost 5000
+ (printf "*1\r\n$4\r\nPING\r\n";) | nc localhost 5000
 # (printf "*2\r\n$4\r\ninfo\r\n$5\r\nreplication\r\n";) | nc localhost 5000
-
-
-
-
-
-
-
