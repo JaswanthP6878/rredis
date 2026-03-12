@@ -1,4 +1,4 @@
 # TODO List
 
 - ./src/main.rs
-	- Use a thead pool instead, Line: 24
+	- Better design idea, have 2 tasks one for the engine that parses the commands, and one, Line: 38

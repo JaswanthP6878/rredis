@@ -35,30 +35,12 @@ fn main() {
     let listener = TcpListener::bind(format!("127.0.0.1:{}", port_number)).unwrap();
     println!("started listening for messages");
 
-    // spawing gossip thread
-    // let gossip_thread = thread::spawn(move || {
-    //     loop {
-    //         println!("Gossiping...");
-    //         if is_replica {
-    //             println!("connected to master");
-    //             let mut stream = TcpStream::connect("127.0.0.1:5000").expect("cannot connect to stream");
-    //             let message = "*1\r\n$4\r\nPING\r\n";
-    //             stream.write_all(message.as_bytes()).unwrap();
-    //             println!("write complete");
-    //             let mut buffer = [0; 512];
-    //             let n = stream.read(&mut buffer).unwrap();
-    //             println!("read complete");
-    //             println!("Received: {}", String::from_utf8_lossy(&buffer[..n]));
-    //         } else {
-    //             break;
-    //         }
-    //         thread::sleep(Duration::from_secs(5));
-    //     }
-    // });
-
+    // TODO : Better design idea, have 2 tasks one for the engine that parses the commands, and one
+    // for the parser. is it not better that way??
     for stream in listener.incoming() {
-        let engine_temp: Arc<Mutex<Engine>> = Arc::clone(&engine);
-        // TODO:  Use a thead pool instead
+        let engine_temp: Arc<Mutex<Engine>> = Arc::clone(&engine); // are you really moving the
+                                                                   // engine into each thread my
+                                                                   // guy??
         thread::spawn(move || match stream {
             Ok(mut stream) => {
                 println!("MASTER: Recived Data");
@@ -67,7 +49,7 @@ fn main() {
                     let protocol_msg = parser::Parser::new(string_val).get_command();
                     println!("{:?}", protocol_msg);
                     stream
-                        .write(engine_temp.lock().unwrap().execute(protocol_msg).as_bytes())
+                        .write_all(engine_temp.lock().unwrap().execute(protocol_msg).as_bytes())
                         .expect("error in sending the stream");
                 } else {
                     println!("cannot read the string from stream");
