@@ -16,6 +16,22 @@ use std::{
 };
 
 
+// we will define async engine wrapper here maybe 
+//
+struct AsyncEngine {
+    inner: Engine,
+}
+
+impl AsyncEngine {
+
+    fn new(args: Arguments) -> Self {
+        Self {
+            inner: Engine::init(args),
+        }
+    }
+}
+
+
 #[allow(dead_code)]
 pub struct Engine {
     // value strores also the timeout and the time the key is inserted at

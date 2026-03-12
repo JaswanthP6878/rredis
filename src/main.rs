@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 use std::{
-    any::Any, io::{Read, Write}, net::{TcpListener, TcpStream}, path::StripPrefixError, rc::Rc, string, sync::{Arc, Mutex}, thread::{self, JoinHandle}, time::Duration
+    any::Any, io::{Read, Write}, net::{TcpStream}, path::StripPrefixError, rc::Rc, string, sync::{Arc, Mutex}, thread::{self, JoinHandle}, time::Duration
 };
 
 use std::env;
@@ -16,7 +16,21 @@ mod cli;
 mod db;
 mod utils;
 
-fn main() {
+use tokio::net::TcpListener;
+use tokio::io;
+
+
+static COUNTE  : usize = AtomicUsize::new(1);
+// for a client that connects
+struct Client{
+    client_id: i32,
+}
+
+
+#[tokio::main]
+async fn main() {
+    // TODO: REimplemnt the master simply using tokio, we will look into the redis, master slave
+    // later
     // You can use print statements as follows for debugging, they'll be visible when running tests.
     let args: Vec<String> = env::args().skip(1).collect();
     if args.len() > 0 {
@@ -32,11 +46,18 @@ fn main() {
         .unwrap_or(default_port_number);
     let engine: Arc<Mutex<Engine>> = Arc::new(Mutex::new(Engine::init(arguments)));
     println!("started redis server in {}", port_number);
-    let listener = TcpListener::bind(format!("127.0.0.1:{}", port_number)).unwrap();
+    let listener = TcpListener::bind(format!("127.0.0.1:{}", port_number)).await.unwrap();
     println!("started listening for messages");
 
-    // TODO : Better design idea, have 2 tasks one for the engine that parses the commands, and one
-    // for the parser. is it not better that way??
+    // PLAN: let us take a socket for each connection, and use CSP for sending messages back and
+    // forth from the engine to solve the issues;
+    // main loop; will continue later
+    loop {
+        let (mut socket , _) = listener.accept().await.unwrap();
+        let (mut rd, mut rw) = io::split(socket); // split into rread and rw parts of the stream
+                                                  //
+    }
+
     for stream in listener.incoming() {
         let engine_temp: Arc<Mutex<Engine>> = Arc::clone(&engine); // are you really moving the
                                                                    // engine into each thread my
