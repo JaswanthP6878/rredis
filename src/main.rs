@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 use std::{
-    any::Any, io::{Read, Write}, net::{TcpListener, TcpStream}, path::StripPrefixError, rc::Rc, string, sync::{Arc, Mutex}, thread::{self, JoinHandle}, time::Duration
+    any::Any, io::{Read, Write}, net::{TcpStream}, path::StripPrefixError, rc::Rc, string, sync::{Arc, Mutex}, thread::{self, JoinHandle}, time::Duration
 };
 
 use std::env;
@@ -16,7 +16,17 @@ mod cli;
 mod db;
 mod utils;
 
-fn main() {
+use tokio::{io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader}, net::TcpListener, sync::oneshot};
+use tokio::io;
+
+use self::{engine::{AsyncEngine, Request}, parser::Parser};
+
+
+
+#[tokio::main]
+async fn main() {
+    // TODO: REimplemnt the master simply using tokio, we will look into the redis, master slave
+    // later
     // You can use print statements as follows for debugging, they'll be visible when running tests.
     let args: Vec<String> = env::args().skip(1).collect();
     if args.len() > 0 {
@@ -30,54 +40,39 @@ fn main() {
         .get_arg("port".to_string())
         .cloned()
         .unwrap_or(default_port_number);
-    let engine: Arc<Mutex<Engine>> = Arc::new(Mutex::new(Engine::init(arguments)));
+    // let engine: Arc<Mutex<Engine>> = Arc::new(Mutex::new(Engine::init(arguments))); # older sync implementation 
+    //
+    let tx = AsyncEngine::start(arguments); // async engine starts here
+
     println!("started redis server in {}", port_number);
-    let listener = TcpListener::bind(format!("127.0.0.1:{}", port_number)).unwrap();
+    let listener = TcpListener::bind(format!("127.0.0.1:{}", port_number)).await.unwrap();
     println!("started listening for messages");
 
-    // spawing gossip thread
-    // let gossip_thread = thread::spawn(move || {
-    //     loop {
-    //         println!("Gossiping...");
-    //         if is_replica {
-    //             println!("connected to master");
-    //             let mut stream = TcpStream::connect("127.0.0.1:5000").expect("cannot connect to stream");
-    //             let message = "*1\r\n$4\r\nPING\r\n";
-    //             stream.write_all(message.as_bytes()).unwrap();
-    //             println!("write complete");
-    //             let mut buffer = [0; 512];
-    //             let n = stream.read(&mut buffer).unwrap();
-    //             println!("read complete");
-    //             println!("Received: {}", String::from_utf8_lossy(&buffer[..n]));
-    //         } else {
-    //             break;
-    //         }
-    //         thread::sleep(Duration::from_secs(5));
-    //     }
-    // });
-
-    for stream in listener.incoming() {
-        let engine_temp: Arc<Mutex<Engine>> = Arc::clone(&engine);
-        // TODO:  Use a thead pool instead
-        thread::spawn(move || match stream {
-            Ok(mut stream) => {
-                println!("MASTER: Recived Data");
-                let mut string_val = String::new();
-                if let Ok(_size) = stream.read_to_string(&mut string_val) {
-                    let protocol_msg = parser::Parser::new(string_val).get_command();
-                    println!("{:?}", protocol_msg);
-                    stream
-                        .write(engine_temp.lock().unwrap().execute(protocol_msg).as_bytes())
-                        .expect("error in sending the stream");
-                } else {
-                    println!("cannot read the string from stream");
+    // PLAN: let us take a socket for each connection, and use CSP for sending messages back and
+    // forth from the engine to solve the issues;
+    // main loop; will continue later
+    loop {
+        let (mut stream , _) = listener.accept().await.unwrap();
+        let engine_sender = tx.clone();
+        tokio::spawn(async move {
+            // lets create a buffered reader
+            let (reader, mut writer) = io::split(stream);
+            let mut reader = BufReader::new(reader); // bufreader
+            loop {
+                let mut message = String::new();
+                if reader.read_to_string(&mut message).await.unwrap() == 0 { 
+                    return;
                 }
-            }
-            Err(e) => {
-                println!("error: {}", e);
+                let command = Parser::new(message).get_command(); // Command is a protocol
+                let (tx, rx) = oneshot::channel();
+                let request = Request {
+                    protocol: command,
+                    responder: tx,
+                };
+                let _ = engine_sender.send(request).await; // sending it to the engine
+                let val = rx.await;
+                writer.write_all(val.unwrap().as_bytes()).await.unwrap();
             }
         });
     }
-
-    // gossip_thread.join().unwrap();
 }
