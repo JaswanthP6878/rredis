@@ -16,15 +16,11 @@ mod cli;
 mod db;
 mod utils;
 
-use tokio::net::TcpListener;
+use tokio::{io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader}, net::TcpListener, sync::oneshot};
 use tokio::io;
 
+use self::{engine::{AsyncEngine, Request}, parser::Parser};
 
-static COUNTE  : usize = AtomicUsize::new(1);
-// for a client that connects
-struct Client{
-    client_id: i32,
-}
 
 
 #[tokio::main]
@@ -44,7 +40,10 @@ async fn main() {
         .get_arg("port".to_string())
         .cloned()
         .unwrap_or(default_port_number);
-    let engine: Arc<Mutex<Engine>> = Arc::new(Mutex::new(Engine::init(arguments)));
+    // let engine: Arc<Mutex<Engine>> = Arc::new(Mutex::new(Engine::init(arguments))); # older sync implementation 
+    //
+    let tx = AsyncEngine::start(arguments); // async engine starts here
+
     println!("started redis server in {}", port_number);
     let listener = TcpListener::bind(format!("127.0.0.1:{}", port_number)).await.unwrap();
     println!("started listening for messages");
@@ -53,34 +52,27 @@ async fn main() {
     // forth from the engine to solve the issues;
     // main loop; will continue later
     loop {
-        let (mut socket , _) = listener.accept().await.unwrap();
-        let (mut rd, mut rw) = io::split(socket); // split into rread and rw parts of the stream
-                                                  //
-    }
-
-    for stream in listener.incoming() {
-        let engine_temp: Arc<Mutex<Engine>> = Arc::clone(&engine); // are you really moving the
-                                                                   // engine into each thread my
-                                                                   // guy??
-        thread::spawn(move || match stream {
-            Ok(mut stream) => {
-                println!("MASTER: Recived Data");
-                let mut string_val = String::new();
-                if let Ok(_size) = stream.read_to_string(&mut string_val) {
-                    let protocol_msg = parser::Parser::new(string_val).get_command();
-                    println!("{:?}", protocol_msg);
-                    stream
-                        .write_all(engine_temp.lock().unwrap().execute(protocol_msg).as_bytes())
-                        .expect("error in sending the stream");
-                } else {
-                    println!("cannot read the string from stream");
+        let (mut stream , _) = listener.accept().await.unwrap();
+        let engine_sender = tx.clone();
+        tokio::spawn(async move {
+            // lets create a buffered reader
+            let (reader, mut writer) = io::split(stream);
+            let mut reader = BufReader::new(reader); // bufreader
+            loop {
+                let mut message = String::new();
+                if reader.read_to_string(&mut message).await.unwrap() == 0 { 
+                    return;
                 }
-            }
-            Err(e) => {
-                println!("error: {}", e);
+                let command = Parser::new(message).get_command(); // Command is a protocol
+                let (tx, rx) = oneshot::channel();
+                let request = Request {
+                    protocol: command,
+                    responder: tx,
+                };
+                let _ = engine_sender.send(request).await; // sending it to the engine
+                let val = rx.await;
+                writer.write_all(val.unwrap().as_bytes()).await.unwrap();
             }
         });
     }
-
-    // gossip_thread.join().unwrap();
 }

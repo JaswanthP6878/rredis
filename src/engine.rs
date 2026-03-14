@@ -1,5 +1,5 @@
 use crate::cli::Arguments;
-use crate::db;
+use crate::{db, protocol};
 use crate::{
     db::Db,
     protocol::{Protocol, Response},
@@ -7,6 +7,7 @@ use crate::{
 };
 use anyhow::{Error, Result};
 use core::time;
+use std::process::Command;
 use std::{
     collections::HashMap,
     fs::remove_dir,
@@ -17,17 +18,32 @@ use std::{
 
 
 // we will define async engine wrapper here maybe 
-//
-struct AsyncEngine {
-    inner: Engine,
+use tokio::sync::{mpsc, oneshot};
+
+
+// requests sent to an engine
+pub struct Request {
+    pub protocol: Protocol,
+    pub responder:  oneshot::Sender<String>, // for now changing to String
 }
 
-impl AsyncEngine {
 
-    fn new(args: Arguments) -> Self {
-        Self {
-            inner: Engine::init(args),
-        }
+
+// Async wrapper around Engine for enabling mpcs communication
+pub struct AsyncEngine {}
+
+impl AsyncEngine {
+    pub fn start(args: Arguments ) -> mpsc::Sender<Request>  {
+        let (tx, mut rx) = mpsc::channel::<Request>(5);
+        let mut engine =  Engine::init(args);
+
+        tokio::spawn(async move {
+            while let Some(req) = rx.recv().await {
+                let result = engine.execute(req.protocol);
+                let _ = req.responder.send(result);
+            }
+        });
+        tx
     }
 }
 
@@ -55,7 +71,6 @@ impl Engine {
         }
         let rdb_path_db = rdb_path.clone();
         let rdb_file_db = rdb_file.clone();
-        // identify master or slave role
         let mut role = Role::Master("8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb".to_string());
         if let Some(val) = args.get_arg("replicaof".to_string()) {
             let master_details = val.split_ascii_whitespace().collect::<Vec<_>>();
@@ -110,10 +125,10 @@ impl Engine {
             }
             Protocol::KEYS(val) => {
                 println!("Key pattern is {}", val);
-                let mut reponse: Response<'_> = Response::new();
+                let mut reponse: Response = Response::new();
                 if val == "*".to_string() {
                     for key in self.memory.keys() {
-                        reponse.add_item(key);
+                        reponse.add_item(key.into());
                     }
                 } else if val.ends_with("*") {
                     let prefix = &val[..val.len() - 1];
@@ -124,7 +139,7 @@ impl Engine {
                         .filter(|s| s.starts_with(prefix))
                         .collect::<Vec<_>>();
                     for val in values {
-                        reponse.add_item(val);
+                        reponse.add_item(val.into());
                     }
                 } else {
                     let values = self
@@ -134,17 +149,17 @@ impl Engine {
                         .filter(|s| *s == &val)
                         .collect::<Vec<_>>();
                     for val in values {
-                        reponse.add_item(val);
+                        reponse.add_item(val.into());
                     }
                 }
 
                 return reponse.construct_response();
             }
             Protocol::SAVE => {
-                let mut response: Response<'_> = Response::new();
+                let mut response: Response =  Response::new();
                 match self.db.persist_to_db(&self.memory) {
                     Ok(_val) => {
-                        response.add_item("Ok");
+                        response.add_item("Ok".into());
                         return response.construct_response();
                     }
                     Err(e) => {
@@ -158,13 +173,13 @@ impl Engine {
                 if val == "replication" {
                     match &self.role {
                         Role::Master(_replid) => {
-                            response.add_item("role:master");
+                            response.add_item("role:master".into());
                             response
-                                .add_item("master_replid:8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb");
-                            response.add_item("master_repl_offset:0");
+                                .add_item("master_replid:8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb".into());
+                            response.add_item("master_repl_offset:0".into());
                         }
                         Role::Slave(_, _) => {
-                            response.add_item("role:slave");
+                            response.add_item("role:slave".into());
                         }
                     }
                 }

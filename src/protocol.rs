@@ -16,15 +16,15 @@ pub enum Protocol {
     INFO(String),
 }
 #[derive(Debug)]
-pub struct Response<'a> {
-    items: Vec<&'a str>,
+pub struct Response {
+    items: Vec<String>,
 }
 
-impl<'a> Response<'a> {
+impl Response {
     pub fn new() -> Self {
         return Self { items: vec![] };
     }
-    pub fn add_item(&mut self, val: &'a str) {
+    pub fn add_item(&mut self, val: String) {
         self.items.push(val);
     }
 
@@ -48,8 +48,8 @@ mod tests {
     #[test]
     fn test_response() {
         let mut response = Response::new();
-        response.add_item("bar");
-        response.add_item("foo");
+        response.add_item("bar".into());
+        response.add_item("foo".into());
         assert_eq!(
             "$2\r\nbar\r\nfoo\r\n".to_string(),
             response.construct_response()
