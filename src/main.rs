@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 use std::{
-    any::Any, io::{Read, Write}, net::{TcpStream}, path::StripPrefixError, rc::Rc, string, sync::{Arc, Mutex}, thread::{self, JoinHandle}, time::Duration
+    any::Any, error::Error, io::{Read, Write}, net::TcpStream, path::StripPrefixError, rc::Rc, string, sync::{Arc, Mutex}, thread::{self, JoinHandle}, time::Duration
 };
 
 use std::env;
@@ -8,6 +8,7 @@ use std::env;
 mod engine;
 mod parser;
 mod protocol;
+mod connection;
 
 use cli::Arguments;
 use engine::{Engine};
@@ -20,6 +21,8 @@ use tokio::{io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader}, net::
 use tokio::io;
 
 use self::{engine::{AsyncEngine, Request}, parser::Parser};
+
+
 
 
 
@@ -50,7 +53,7 @@ async fn main() {
 
     // PLAN: let us take a socket for each connection, and use CSP for sending messages back and
     // forth from the engine to solve the issues;
-    // main loop; will continue later
+    // main loop; 
     loop {
         let (mut stream , _) = listener.accept().await.unwrap();
         let engine_sender = tx.clone();
@@ -60,9 +63,12 @@ async fn main() {
             let mut reader = BufReader::new(reader); // bufreader
             loop {
                 let mut message = String::new();
-                if reader.read_to_string(&mut message).await.unwrap() == 0 { 
+                // reading till end of string is not valid
+                // breaks running
+                if reader.read_line(&mut message).await.unwrap() == 0 {  
                     return;
                 }
+                println!{"{:?}", message};
                 let command = Parser::new(message).get_command(); // Command is a protocol
                 let (tx, rx) = oneshot::channel();
                 let request = Request {
