@@ -6,6 +6,8 @@ use tokio::net::TcpStream;
 
 use anyhow::Result;
 
+use crate::frame::{self, Frame};
+
 
 // connection instances for each connection
 struct Connection {
@@ -24,12 +26,12 @@ impl Connection {
     }
 
     pub async fn read_frame(&mut self) -> Result<Option<Frame>> {
-        // incrementally building the frame maybe?
+        // incrementally building the frame
         loop {
             if let Some(frame) = self.parse_frame()? {
-                return Ok(Some(frame))
+                return Ok(Some(frame));
             }
-            // error varient returner while parsing has to treated as
+            // error varient returnes while parsing has to treated as
             // that the stream in closed or done
             if 0 == self.socket.read_buf(&mut self.buffer).await? {
                 // return None, when clean connection reset
@@ -46,6 +48,3 @@ impl Connection {
         todo!("Define the parse frame and contiue")
     }
 }
-
-
-
