@@ -16,7 +16,7 @@ use protocol::Protocol;
 mod cli;
 mod db;
 mod utils;
-mod frame;
+pub mod frame;
 
 use tokio::{io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader}, net::TcpListener, sync::oneshot};
 use tokio::io;
