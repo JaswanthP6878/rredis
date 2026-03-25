@@ -1,10 +1,13 @@
 use std::error::Error;
+use std::io::Cursor;
 
 use bytes::{BufMut, BytesMut};
 use tokio::io::{AsyncReadExt, BufWriter};
 use tokio::net::TcpStream;
 
-use anyhow::Result;
+use bytes::Buf;
+
+use anyhow::{Result, anyhow};
 
 use crate::frame::{self, Frame};
 
@@ -38,13 +41,29 @@ impl Connection {
                 if self.buffer.is_empty() {
                     return Ok(None)
                 } else {
-                    return Err("Connection reset into peer".into());
+                    return Err(anyhow!("Connection reset by peer"));
                 }
             }
         }
     }
 
-    fn parse_frame(&mut self) -> Option<Frame> {
-        todo!("Define the parse frame and contiue")
+    fn parse_frame(&mut self) -> Result<Option<Frame>> {
+        use frame::Error::Incomplete;
+        let mut buf = Cursor::new(&self.buffer[..]);
+
+        match Frame::check(&mut buf) {
+            Ok(_) => {
+                let len = buf.position() as usize;
+
+                buf.set_position(0);
+
+                let frame = Frame::parse(&mut buf)?;
+                self.buffer.advance(len);
+                Ok(Some(frame))
+            }
+            Err(Incomplete) => Ok(None),
+            Err(e) => Err(e.into())
+        }
+
     }
 }
