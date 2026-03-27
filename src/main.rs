@@ -9,6 +9,7 @@ mod engine;
 mod parser;
 mod protocol;
 mod connection;
+mod server;
 
 use cli::Arguments;
 use engine::{Engine};
@@ -21,7 +22,7 @@ pub mod frame;
 use tokio::{io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader}, net::TcpListener, sync::oneshot};
 use tokio::io;
 
-use self::{engine::{AsyncEngine, Request}, parser::Parser};
+use self::{connection::Connection, engine::{AsyncEngine, Request}, parser::Parser};
 
 
 
@@ -52,34 +53,45 @@ async fn main() {
     let listener = TcpListener::bind(format!("127.0.0.1:{}", port_number)).await.unwrap();
     println!("started listening for messages");
 
-    // PLAN: let us take a socket for each connection, and use CSP for sending messages back and
-    // forth from the engine to solve the issues;
-    // main loop; 
+    // TODO: Fix this with the new frame methodology
     loop {
-        let (mut stream , _) = listener.accept().await.unwrap();
-        let engine_sender = tx.clone();
+        let (stream , _) = listener.accept().await.unwrap();
         tokio::spawn(async move {
-            // lets create a buffered reader
-            let (reader, mut writer) = io::split(stream);
-            let mut reader = BufReader::new(reader); // bufreader
-            loop {
-                let mut message = String::new();
-                // reading till end of string is not valid
-                // breaks running
-                if reader.read_line(&mut message).await.unwrap() == 0 {  
-                    return;
+        let mut connection_val = Connection::new(stream);
+        loop {
+            if let Ok(val) = connection_val.read_frame().await {
+                match val {
+                     Some(frame) => { println!("{:?}", frame)},
+                     None => { println!("No proper frame recieved yet")}
                 }
-                println!{"{:?}", message};
-                let command = Parser::new(message).get_command(); // Command is a protocol
-                let (tx, rx) = oneshot::channel();
-                let request = Request {
-                    protocol: command,
-                    responder: tx,
-                };
-                let _ = engine_sender.send(request).await; // sending it to the engine
-                let val = rx.await;
-                writer.write_all(val.unwrap().as_bytes()).await.unwrap();
+            } else {
+                panic!("stream failed panic!!!")
             }
+        }
         });
+        // let engine_sender = tx.clone();
+        // tokio::spawn(async move {
+        //     // lets create a buffered reader
+        //     let (reader, mut writer) = io::split(stream);
+        //     let mut reader = BufReader::new(reader); // bufreader
+        //     loop {
+        //         let mut message = String::new();
+        //         // reading till end of string is not valid
+        //         // breaks running
+        //         if reader.read_line(&mut message).await.unwrap() == 0 {  
+        //             return;
+        //         }
+        //         println!{"{:?}", message};
+        //         let command = Parser::new(message).get_command(); // Command is a protocol
+        //         let (tx, rx) = oneshot::channel();
+        //         let request = Request {
+        //             protocol: command,
+        //             responder: tx,
+        //         };
+        //         let _ = engine_sender.send(request).await; // sending it to the engine
+        //         let val = rx.await;
+        //         writer.write_all(val.unwrap().as_bytes()).await.unwrap();
+        //     }
+        // });
     }
 }

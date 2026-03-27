@@ -13,7 +13,7 @@ use crate::frame::{self, Frame};
 
 
 // connection instances for each connection
-struct Connection {
+pub struct Connection {
     socket: BufWriter<TcpStream>,
     buffer: BytesMut,
 }
