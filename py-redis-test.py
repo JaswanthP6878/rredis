@@ -9,8 +9,10 @@ class LoggingConnection(Connection) :
 
 pool = redis.ConnectionPool(connection_class=LoggingConnection, host= "localhost", port=6379)
 r = redis.Redis(connection_pool=pool)
+print(f'connection is made')
 
 print(r.ping()); # must respond with pong
+print(f'ping message is sent')
 response = r.set(name="foo", value=3)
 print(type(response))
 # print(type(r.get(name="foo")))
