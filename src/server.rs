@@ -18,10 +18,12 @@ impl Listener {
         }
     }
     pub async fn run(&self) -> Result<()> {
+        println!("Started listner run");
         loop {
             if let Ok((socket, _))  = self.connection.accept().await {
                 tokio::spawn(async move {
-                    let handler = Handler::new(socket);
+                    let mut handler = Handler::new(socket);
+                    let _ = handler.run().await;
                 });
             }
         }
@@ -42,10 +44,15 @@ impl Handler {
     }
 
     // main handler runs here; for now prints frames
-    pub async fn run(&self) -> Result<()> {
+    pub async fn run(&mut self) -> Result<()> {
         loop {
-            todo!("continue from here")
+            if let Some(val) = self.connnection.read_frame().await? {
+                println!("{:?}", val); // convert it into a command and apply that command
+            } else {
+                break;
+            }
         }
+        Ok(())
     }
 
 }

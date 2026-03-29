@@ -19,6 +19,10 @@ mod db;
 mod utils;
 pub mod frame;
 
+
+mod cmd;
+mod parse;
+
 use tokio::{io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader}, net::TcpListener, sync::oneshot};
 use tokio::io;
 
@@ -52,23 +56,9 @@ async fn main() {
     println!("started redis server in {}", port_number);
     let listener = TcpListener::bind(format!("127.0.0.1:{}", port_number)).await.unwrap();
     println!("started listening for messages");
-
+    let server = server::Listener::new(listener);
+    let _ = server.run().await;
     // TODO: Fix this with the new frame methodology
-    loop {
-        let (stream , _) = listener.accept().await.unwrap();
-        tokio::spawn(async move {
-        let mut connection_val = Connection::new(stream);
-        loop {
-            if let Ok(val) = connection_val.read_frame().await {
-                match val {
-                     Some(frame) => { println!("{:?}", frame)},
-                     None => { println!("No proper frame recieved yet")}
-                }
-            } else {
-                panic!("stream failed panic!!!")
-            }
-        }
-        });
         // let engine_sender = tx.clone();
         // tokio::spawn(async move {
         //     // lets create a buffered reader
@@ -93,5 +83,4 @@ async fn main() {
         //         writer.write_all(val.unwrap().as_bytes()).await.unwrap();
         //     }
         // });
-    }
 }
