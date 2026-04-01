@@ -6,14 +6,11 @@ use std::{
 use std::env;
 
 mod engine;
-mod parser;
-mod protocol;
 mod connection;
 mod server;
 
 use cli::Arguments;
 use engine::{Engine};
-use protocol::Protocol;
 mod cli;
 mod db;
 mod utils;
@@ -26,7 +23,7 @@ mod parse;
 use tokio::{io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader}, net::TcpListener, sync::oneshot};
 use tokio::io;
 
-use self::{connection::Connection, engine::{AsyncEngine, Request}, parser::Parser};
+use self::{connection::Connection, engine::{AsyncEngine, Request}};
 
 #[tokio::main]
 async fn main() {
@@ -45,38 +42,13 @@ async fn main() {
         .get_arg("port".to_string())
         .cloned()
         .unwrap_or(default_port_number);
-    // let engine: Arc<Mutex<Engine>> = Arc::new(Mutex::new(Engine::init(arguments))); # older sync implementation 
-    //
-    let tx = AsyncEngine::start(arguments); // async engine starts here
+    
+    //NOTE:  this tx accepts Request types
+    let tx = AsyncEngine::start(arguments);
 
     println!("started redis server in {}", port_number);
     let listener = TcpListener::bind(format!("127.0.0.1:{}", port_number)).await.unwrap();
     println!("started listening for messages");
-    let server = server::Listener::new(listener);
+    let server = server::Listener::new(listener, tx);
     let _ = server.run().await;
-    // TODO: Fix this with the new frame methodology
-        // let engine_sender = tx.clone();
-        // tokio::spawn(async move {
-        //     // lets create a buffered reader
-        //     let (reader, mut writer) = io::split(stream);
-        //     let mut reader = BufReader::new(reader); // bufreader
-        //     loop {
-        //         let mut message = String::new();
-        //         // reading till end of string is not valid
-        //         // breaks running
-        //         if reader.read_line(&mut message).await.unwrap() == 0 {  
-        //             return;
-        //         }
-        //         println!{"{:?}", message};
-        //         let command = Parser::new(message).get_command(); // Command is a protocol
-        //         let (tx, rx) = oneshot::channel();
-        //         let request = Request {
-        //             protocol: command,
-        //             responder: tx,
-        //         };
-        //         let _ = engine_sender.send(request).await; // sending it to the engine
-        //         let val = rx.await;
-        //         writer.write_all(val.unwrap().as_bytes()).await.unwrap();
-        //     }
-        // });
 }

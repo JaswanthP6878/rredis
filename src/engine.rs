@@ -1,13 +1,13 @@
 use crate::cli::Arguments;
-use crate::{db, protocol};
+use crate::cmd::Command;
+use crate::{db, frame};
 use crate::{
     db::Db,
-    protocol::{Protocol, Response},
     utils::Role,
 };
 use anyhow::{Error, Result};
+use bytes::Bytes;
 use core::time;
-use std::process::Command;
 use std::{
     collections::HashMap,
     fs::remove_dir,
@@ -16,15 +16,15 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use crate::frame::Frame;
 
-// we will define async engine wrapper here maybe 
 use tokio::sync::{mpsc, oneshot};
 
 
 // requests sent to an engine
 pub struct Request {
-    pub protocol: Protocol,
-    pub responder:  oneshot::Sender<String>, // for now changing to String
+    pub protocol: Command,
+    pub responder:  oneshot::Sender<Frame>, // for now changing to String
 }
 
 
@@ -40,6 +40,8 @@ impl AsyncEngine {
         tokio::spawn(async move {
             while let Some(req) = rx.recv().await {
                 let result = engine.execute(req.protocol);
+                // result Frame is sent in the oneshot channel
+                // thats it
                 let _ = req.responder.send(result);
             }
         });
@@ -50,8 +52,7 @@ impl AsyncEngine {
 
 #[allow(dead_code)]
 pub struct Engine {
-    // value strores also the timeout and the time the key is inserted at
-    memory: HashMap<String, (String, i32, Option<SystemTime>)>,
+    memory: HashMap<String, Bytes>,
     arguments: Arguments,
     rdb_file: String,
     rdb_path: String,
@@ -85,106 +86,32 @@ impl Engine {
             role,
         }
     }
-
-    pub fn execute(&mut self, request: Protocol) -> String {
-        match request {
-            Protocol::Echo(val) => {
-                format!("$3\r\n{}\r\n", val)
+    // make execute send frame
+    // NOTE: sending null frame for now in case of errors need to fix later
+    pub fn execute(&mut self, cmd: Command) -> Frame {
+        match cmd {
+            Command::Set(set) => {
+                self.memory.insert(set.key().into(), set.value().clone());
+                Frame::Simple("OK".to_string())
             }
-            Protocol::PING => {
-                println!("Recived Ping sending pong");
-                "*1\r\n$4\r\nPONG\r\n".to_owned()
-            }
-            Protocol::Set(key, val, px, time_opt) => {
-                self.memory.insert(key, (val, px, time_opt));
-                return "OK".to_owned();
-            }
-            Protocol::GET(key) => {
-                let (result, px, timeout) = self.memory.get(&key).unwrap().to_owned();
-                if px < 0 {
-                    return result;
-                }
-                if let Ok(val) = SystemTime::now().duration_since(timeout.unwrap()) {
-                    println!("val as mill is {}", val.as_millis());
-                    if val.as_millis() > px as u128 {
-                        self.memory.remove(&key);
-                        return "INVALID".to_owned();
-                    }
-                }
-                return result;
-            }
-            Protocol::CONFIG(val) => {
-                if let Some(v) = self.arguments.get_arg(val) {
-                    return v.to_owned();
+            Command::Get(get) => {
+                if let Some(result) = self.memory.get(get.key()) {
+                    Frame::Bulk(result.clone())
                 } else {
-                    return "INVALID".to_owned();
-                }
-            }
-            Protocol::INVALID => {
-                return "INVALD".to_owned();
-            }
-            Protocol::KEYS(val) => {
-                println!("Key pattern is {}", val);
-                let mut reponse: Response = Response::new();
-                if val == "*".to_string() {
-                    for key in self.memory.keys() {
-                        reponse.add_item(key.into());
-                    }
-                } else if val.ends_with("*") {
-                    let prefix = &val[..val.len() - 1];
-                    let values = self
-                        .memory
-                        .keys()
-                        .into_iter()
-                        .filter(|s| s.starts_with(prefix))
-                        .collect::<Vec<_>>();
-                    for val in values {
-                        reponse.add_item(val.into());
-                    }
-                } else {
-                    let values = self
-                        .memory
-                        .keys()
-                        .into_iter()
-                        .filter(|s| *s == &val)
-                        .collect::<Vec<_>>();
-                    for val in values {
-                        reponse.add_item(val.into());
-                    }
+                    Frame::Null
                 }
 
-                return reponse.construct_response();
             }
-            Protocol::SAVE => {
-                let mut response: Response =  Response::new();
-                match self.db.persist_to_db(&self.memory) {
-                    Ok(_val) => {
-                        response.add_item("Ok".into());
-                        return response.construct_response();
-                    }
-                    Err(e) => {
-                        println!("error saving data: {}", e);
-                        response.construct_response()
-                    }
-                }
-            }
-            Protocol::INFO(val) => {
-                let mut response = Response::new();
-                if val == "replication" {
-                    match &self.role {
-                        Role::Master(_replid) => {
-                            response.add_item("role:master".into());
-                            response
-                                .add_item("master_replid:8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb".into());
-                            response.add_item("master_repl_offset:0".into());
-                        }
-                        Role::Slave(_, _) => {
-                            response.add_item("role:slave".into());
-                        }
-                    }
-                }
-                response.construct_response()
-            }
+            Command::Ping(ping) => {
+                let response = match ping.msg {
+                    Some(msg) => Frame::Bulk(msg),
+                    None => Frame::Simple("PONG".to_string()),
+                };
+                response
+            },
+            // NOTE: Will use it for the py-redis client sending "LIBINFO"
+            // and other nonsense expext ok msg response from here
+            Command::Unknown(_) => Frame::Simple("OK".to_string()),
         }
     }
 }

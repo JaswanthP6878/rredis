@@ -2,7 +2,7 @@ use std::error::Error;
 use std::io::Cursor;
 
 use bytes::{BufMut, BytesMut};
-use tokio::io::{AsyncReadExt, BufWriter};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, BufWriter};
 use tokio::net::TcpStream;
 
 use bytes::Buf;
@@ -14,7 +14,7 @@ use crate::frame::{self, Frame};
 
 // connection instances for each connection
 pub struct Connection {
-    socket: BufWriter<TcpStream>,
+    stream: BufWriter<TcpStream>,
     buffer: BytesMut,
 }
 
@@ -22,7 +22,7 @@ pub struct Connection {
 impl Connection {
     pub fn new(socket: TcpStream) -> Self {
         Self {
-            socket : BufWriter::new(socket),
+            stream : BufWriter::new(socket),
             // a 5kb buffer for each conection
             buffer: BytesMut::with_capacity(5 * 1024),
         }
@@ -34,10 +34,7 @@ impl Connection {
             if let Some(frame) = self.parse_frame()? {
                 return Ok(Some(frame));
             }
-            // error varient returnes while parsing has to treated as
-            // that the stream in closed or done
-            if 0 == self.socket.read_buf(&mut self.buffer).await? {
-                // return None, when clean connection reset
+            if 0 == self.stream.read_buf(&mut self.buffer).await? {
                 if self.buffer.is_empty() {
                     return Ok(None)
                 } else {
@@ -66,4 +63,78 @@ impl Connection {
         }
 
     }
+    pub async fn write_frame(&mut self, frame: &Frame) -> Result<()> {
+        match frame {
+            Frame::Array(val) => {
+                self.stream.write_u8(b'*').await?;
+                self.write_decimal(val.len() as u64).await?;
+
+                for entry in &**val {
+                    self.write_value(entry).await?;
+                }
+            }
+            _ => self.write_value(frame).await?,
+        }
+
+        // anyhow matching
+        if let Err(e) = self.stream.flush().await {
+            Err(anyhow!("Flush stream error {}", e))
+        } else {
+            Ok(())
+        }
+    }
+
+    async fn write_value(&mut self, frame: &Frame) -> Result<()> {
+        match frame {
+            Frame::Simple(val) => {
+                self.stream.write_u8(b'+').await?;
+                self.stream.write_all(val.as_bytes()).await?;
+                self.stream.write_all(b"\r\n").await?;
+            }
+            Frame::Error(val) => {
+                self.stream.write_u8(b'-').await?;
+                self.stream.write_all(val.as_bytes()).await?;
+                self.stream.write_all(b"\r\n").await?;
+            }
+            Frame::Integer(val) => {
+                self.stream.write_u8(b':').await?;
+                self.write_decimal(*val).await?;
+            }
+            Frame::Null => {
+                self.stream.write_all(b"$-1\r\n").await?;
+            }
+            Frame::Bulk(val) => {
+                let len = val.len();
+
+                self.stream.write_u8(b'$').await?;
+                self.write_decimal(len as u64).await?;
+                self.stream.write_all(val).await?;
+                self.stream.write_all(b"\r\n").await?;
+            }
+            // Encoding an `Array` from within a value cannot be done using a
+            // recursive strategy. In general, async fns do not support
+            // recursion. Mini-redis has not needed to encode nested arrays yet,
+            // so for now it is skipped.
+            Frame::Array(_val) => unreachable!(),
+        }
+
+        Ok(())
+    }
+
+    /// Write a decimal frame to the stream
+    async fn write_decimal(&mut self, val: u64) -> Result<()> {
+        use std::io::Write;
+
+        // Convert the value to a string
+        let mut buf = [0u8; 20];
+        let mut buf = Cursor::new(&mut buf[..]);
+        write!(&mut buf, "{}", val)?;
+
+        let pos = buf.position() as usize;
+        self.stream.write_all(&buf.get_ref()[..pos]).await?;
+        self.stream.write_all(b"\r\n").await?;
+
+        Ok(())
+    }
+
 }
