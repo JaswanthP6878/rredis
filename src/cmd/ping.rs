@@ -5,7 +5,7 @@ use bytes::Bytes;
 
 #[derive(Debug, Default)]
 pub struct Ping {
-    msg: Option<Bytes>,
+    pub(crate) msg: Option<Bytes>,
 }
 
 impl Ping {

@@ -14,6 +14,5 @@ print(f'connection is made')
 print(r.ping()); # must respond with pong
 print(f'ping message is sent')
 response = r.set(name="foo", value=3)
-print(type(response))
-# print(type(r.get(name="foo")))
 response = r.get(name="foo")
+print(response)
